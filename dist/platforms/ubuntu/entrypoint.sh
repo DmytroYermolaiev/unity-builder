@@ -14,7 +14,13 @@ fullProjectPath="$GITHUB_WORKSPACE/$PROJECT_PATH"
 echo "☕ Checking for Temurin 17..."
 if [ ! -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
   echo "📦 Installing Temurin 17 (apt-get)..."
-  apt-get update -qq && apt-get install -y --no-install-recommends temurin-17-jdk
+  apt-get update -qq && apt-get install -y wget apt-transport-https gnupg
+  wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/trusted.gpg.d/adoptium.gpg
+  echo "deb [arch=amd64] https://packages.adoptium.net/artifactory/deb \
+    $(awk -F= '/^VERSION_CODENAME/{print $2}' /etc/os-release) main" \
+    | tee /etc/apt/sources.list.d/adoptium.list
+  apt-get update -qq
+  apt-get install -y temurin-17-jdk || { echo "❌ Failed to install Temurin 17 JDK. Exiting."; exit 1; }
 fi
 
 if [ ! -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
