@@ -14,22 +14,34 @@ fi
 fullProjectPath="$GITHUB_WORKSPACE/$PROJECT_PATH"
 
 if [[ "$BUILD_TARGET" == "Android" ]]; then
-  # ✅ Force external JDK 17 instead of Unity’s embedded one
+  # ✅ Prefer external JDK 17 over Unity embedded JDK
   if [ -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
+    echo "☕ Using external Temurin JDK 17"
     export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
+    export ANDROID_JAVA_HOME="$JAVA_HOME"
+    export UNITY_JAVA_HOME="$JAVA_HOME"
+    export UNITY_JDK=$JAVA_HOME
+    export UNITY_JAVA_EXECUTABLE="$JAVA_HOME/bin/java"
+    export PATH="$JAVA_HOME/bin:$PATH"
+    rm -rf /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK || true
   else
     echo "⚠️ External JDK 17 not found, falling back to Unity embedded one"
     export JAVA_HOME="$(awk -F'=' '/JAVA_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
   fi
-  
-  ANDROID_HOME_DIRECTORY="$(awk -F'=' '/ANDROID_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
-  SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/cmdline-tools -name sdkmanager)
-  if [ -z "${SDKMANAGER}" ]
-  then
-    SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/tools/bin -name sdkmanager)
-    if [ -z "${SDKMANAGER}" ]
-    then
-      echo "No sdkmanager found"
+
+  # ✅ Prefer external ANDROID_HOME if present
+  if [ -d "$ANDROID_HOME" ]; then
+    ANDROID_HOME_DIRECTORY="$ANDROID_HOME"
+  else
+    ANDROID_HOME_DIRECTORY="$(awk -F'=' '/ANDROID_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
+  fi
+
+  echo "📦 Using Android SDK from: $ANDROID_HOME_DIRECTORY"
+  SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/cmdline-tools -name sdkmanager || true)
+  if [ -z "${SDKMANAGER}" ]; then
+    SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/tools/bin -name sdkmanager || true)
+    if [ -z "${SDKMANAGER}" ]; then
+      echo "❌ No sdkmanager found in $ANDROID_HOME_DIRECTORY"
       exit 1
     fi
   fi
