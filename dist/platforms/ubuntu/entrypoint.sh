@@ -24,9 +24,14 @@ if [[ "$BUILD_TARGET" == "Android" ]]; then
     export UNITY_JAVA_EXECUTABLE="$JAVA_HOME/bin/java"
     export PATH="$JAVA_HOME/bin:$PATH"
     rm -rf /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK || true
+
+    echo "✅ Java 17 detected at: $JAVA_HOME"
+    $JAVA_HOME/bin/java -version
   else
-    echo "⚠️ External JDK 17 not found, falling back to Unity embedded one"
-    export JAVA_HOME="$(awk -F'=' '/JAVA_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
+    echo "❌ ERROR: External Temurin JDK 17 not found at /usr/lib/jvm/temurin-17-jdk-amd64"
+    echo "💡 Please copy it before build using this step in your workflow:"
+    echo "    sudo mkdir -p /usr/lib/jvm/temurin-17-jdk-amd64 && sudo cp -r \$JAVA_HOME/* /usr/lib/jvm/temurin-17-jdk-amd64/"
+    exit 1
   fi
 
   # ✅ Prefer external ANDROID_HOME if present
