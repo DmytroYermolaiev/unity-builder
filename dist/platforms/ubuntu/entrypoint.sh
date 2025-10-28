@@ -6,48 +6,46 @@ if [[ "$UNITY_SERIAL" = F* ]]; then
   dbus-uuidgen > /etc/machine-id && mkdir -p /var/lib/dbus/ && ln -sf /etc/machine-id /var/lib/dbus/machine-id
 fi
 
-#
-# Prepare Android SDK, if needed
-# We do this here to ensure it has root permissions
-#
-
 fullProjectPath="$GITHUB_WORKSPACE/$PROJECT_PATH"
 
-echo "☕ Ensuring Temurin 17 is present..."
+#
+# 🧩 Install and configure Temurin 17 JDK inside the container
+#
+echo "☕ Checking for Temurin 17..."
 if [ ! -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
-  echo "📦 Copying JDK from /opt/hostedtoolcache (mounted from host)..."
-  if [ -d "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64" ]; then
-    mkdir -p /usr/lib/jvm/temurin-17-jdk-amd64
-    cp -r /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64/* /usr/lib/jvm/temurin-17-jdk-amd64/ || true
-    echo "✅ JDK 17 copied successfully."
-  else
-    echo "❌ ERROR: Source JDK not found at /opt/hostedtoolcache/... Exiting."
-    exit 1
-  fi
+  echo "📦 Installing Temurin 17 (apt-get)..."
+  apt-get update -qq && apt-get install -y --no-install-recommends temurin-17-jdk
 fi
 
+if [ ! -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
+  echo "❌ Failed to install Temurin 17 JDK. Exiting."
+  exit 1
+fi
+
+# ✅ Force Unity and Gradle to use JDK17
+export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
+export ANDROID_JAVA_HOME="$JAVA_HOME"
+export UNITY_JAVA_HOME="$JAVA_HOME"
+export UNITY_JDK="$JAVA_HOME"
+export UNITY_JAVA_EXECUTABLE="$JAVA_HOME/bin/java"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# Remove old Unity JDK 11
+rm -rf /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK || true
+
+echo "✅ Using Java from: $JAVA_HOME"
+$JAVA_HOME/bin/java -version || { echo "❌ Java not working."; exit 1; }
+
+JAVA_VER=$($JAVA_HOME/bin/java -version 2>&1 | grep 'version' | grep '17' || true)
+if [ -z "$JAVA_VER" ]; then
+  echo "❌ ERROR: Java 17 not active! Build will stop."
+  exit 1
+fi
+
+#
+# 🧩 Prepare Android SDK if needed
+#
 if [[ "$BUILD_TARGET" == "Android" ]]; then
-  # ✅ Prefer external JDK 17 over Unity embedded JDK
-  if [ -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
-    echo "☕ Using external Temurin JDK 17"
-    export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
-    export ANDROID_JAVA_HOME="$JAVA_HOME"
-    export UNITY_JAVA_HOME="$JAVA_HOME"
-    export UNITY_JDK=$JAVA_HOME
-    export UNITY_JAVA_EXECUTABLE="$JAVA_HOME/bin/java"
-    export PATH="$JAVA_HOME/bin:$PATH"
-    rm -rf /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK || true
-
-    echo "✅ Java 17 detected at: $JAVA_HOME"
-    $JAVA_HOME/bin/java -version
-  else
-    echo "❌ ERROR: External Temurin JDK 17 not found at /usr/lib/jvm/temurin-17-jdk-amd64"
-    echo "💡 Please copy it before build using this step in your workflow:"
-    echo "    sudo mkdir -p /usr/lib/jvm/temurin-17-jdk-amd64 && sudo cp -r \$JAVA_HOME/* /usr/lib/jvm/temurin-17-jdk-amd64/"
-    exit 1
-  fi
-
-  # ✅ Prefer external ANDROID_HOME if present
   if [ -d "$ANDROID_HOME" ]; then
     ANDROID_HOME_DIRECTORY="$ANDROID_HOME"
   else
@@ -55,9 +53,9 @@ if [[ "$BUILD_TARGET" == "Android" ]]; then
   fi
 
   echo "📦 Using Android SDK from: $ANDROID_HOME_DIRECTORY"
-  SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/cmdline-tools -name sdkmanager || true)
+  SDKMANAGER=$(find "$ANDROID_HOME_DIRECTORY"/cmdline-tools -name sdkmanager 2>/dev/null || true)
   if [ -z "${SDKMANAGER}" ]; then
-    SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/tools/bin -name sdkmanager || true)
+    SDKMANAGER=$(find "$ANDROID_HOME_DIRECTORY"/tools/bin -name sdkmanager 2>/dev/null || true)
     if [ -z "${SDKMANAGER}" ]; then
       echo "❌ No sdkmanager found in $ANDROID_HOME_DIRECTORY"
       exit 1
@@ -68,28 +66,27 @@ if [[ "$BUILD_TARGET" == "Android" ]]; then
     echo "Updating Android SDK with parameters: $ANDROID_SDK_MANAGER_PARAMETERS"
     $SDKMANAGER "$ANDROID_SDK_MANAGER_PARAMETERS"
   else
-    echo "Updating Android SDK with auto detected target API version"
-    # Read the line containing AndroidTargetSdkVersion from the file
-    targetAPILine=$(grep 'AndroidTargetSdkVersion' "$fullProjectPath/ProjectSettings/ProjectSettings.asset")
-
-    # Extract the number after the semicolon
+    targetAPILine=$(grep 'AndroidTargetSdkVersion' "$fullProjectPath/ProjectSettings/ProjectSettings.asset" || true)
     targetAPI=$(echo "$targetAPILine" | cut -d':' -f2 | tr -d '[:space:]')
-
-    $SDKMANAGER "platforms;android-$targetAPI"
+    if [ -n "$targetAPI" ]; then
+      $SDKMANAGER "platforms;android-$targetAPI"
+    else
+      echo "⚠️ Could not detect AndroidTargetSdkVersion — skipping SDK update"
+    fi
   fi
 
-  echo "Updated Android SDK."
+  echo "✅ Android SDK ready."
 else
   echo "Not updating Android SDK."
 fi
 
+#
+# 🧩 Continue standard GameCI workflow
+#
 if [[ "$RUN_AS_HOST_USER" == "true" ]]; then
   echo "Running as host user"
 
-  # Stop on error if we can't set up the user
   set -e
-
-  # Get host user/group info so we create files with the correct ownership
   USERNAME=$(stat -c '%U' "$fullProjectPath")
   USERID=$(stat -c '%u' "$fullProjectPath")
   GROUPNAME=$(stat -c '%G' "$fullProjectPath")
@@ -101,19 +98,12 @@ if [[ "$RUN_AS_HOST_USER" == "true" ]]; then
   mkdir -p "/home/$USERNAME"
   chown $USERNAME:$GROUPNAME "/home/$USERNAME"
 
-  # Normally need root permissions to access when using su
-  chmod 777 /dev/stdout
-  chmod 777 /dev/stderr
-
-  # Don't stop on error when running our scripts as error handling is baked in
+  chmod 777 /dev/stdout /dev/stderr
   set +e
 
-  # Switch to the host user so we can create files with the correct ownership
   su $USERNAME -c "$SHELL -c 'source /steps/runsteps.sh'"
 else
   echo "Running as root"
-
-  # Run as root
   source /steps/runsteps.sh
 fi
 
