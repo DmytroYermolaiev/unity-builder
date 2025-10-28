@@ -48,7 +48,6 @@ echo "✅ Unity JDK replaced with Temurin 17"
 # 🧠 Force Unity to see correct JDK path
 #
 echo "💡 Forcing Unity to use external JDK 17..."
-# Update Unity Editor settings
 mkdir -p "$fullProjectPath/ProjectSettings"
 if grep -q "androidJdkRoot:" "$fullProjectPath/ProjectSettings/EditorSettings.asset" 2>/dev/null; then
   sed -i 's|androidJdkRoot:.*|androidJdkRoot: /usr/lib/jvm/temurin-17-jdk-amd64|' "$fullProjectPath/ProjectSettings/EditorSettings.asset"
@@ -56,9 +55,7 @@ else
   echo "androidJdkRoot: /usr/lib/jvm/temurin-17-jdk-amd64" >> "$fullProjectPath/ProjectSettings/EditorSettings.asset"
 fi
 
-echo "✅ JDK path applied to Unity settings."
-
-echo "🧠 Forcing Unity EditorPrefs.xml to use correct JDK..."
+echo "🧠 Creating EditorPrefs.xml with correct paths..."
 mkdir -p /root/.config/unity3d/Preferences
 cat <<EOF > /root/.config/unity3d/Preferences/EditorPrefs.xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -70,7 +67,16 @@ cat <<EOF > /root/.config/unity3d/Preferences/EditorPrefs.xml
   <pref name="kPreferAndroidStudio" type="int">0</pref>
 </unity_prefs>
 EOF
-echo "✅ EditorPrefs.xml created successfully at /root/.config/unity3d/Preferences"
+echo "✅ EditorPrefs.xml created successfully."
+
+#
+# 🧠 Fix GameCI HOME redirection (Unity reads from /github/home)
+#
+echo "🧠 Ensuring Unity sees correct HOME and preferences..."
+mkdir -p /github/home/.config/unity3d/Preferences
+cp -f /root/.config/unity3d/Preferences/EditorPrefs.xml /github/home/.config/unity3d/Preferences/EditorPrefs.xml
+export HOME="/github/home"
+echo "✅ Copied EditorPrefs.xml to /github/home and set HOME=$HOME"
 
 #
 # 🧩 Prepare Android SDK (optional)
@@ -106,7 +112,7 @@ else
 fi
 
 #
-# 🚀 Run Unity build as root (GameCI default)
+# 🚀 Run Unity build
 #
 echo "🚀 Starting Unity build..."
 source /steps/runsteps.sh
