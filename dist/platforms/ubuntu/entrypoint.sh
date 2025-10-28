@@ -56,11 +56,21 @@ else
   echo "androidJdkRoot: /usr/lib/jvm/temurin-17-jdk-amd64" >> "$fullProjectPath/ProjectSettings/EditorSettings.asset"
 fi
 
-# Also create Unity prefs for external tools
-mkdir -p /root/.local/share/unity3d/Unity/Editor
-echo "jdkPath=/usr/lib/jvm/temurin-17-jdk-amd64" > /root/.local/share/unity3d/Unity/Editor/Preferences.plist
-
 echo "✅ JDK path applied to Unity settings."
+
+echo "🧠 Forcing Unity EditorPrefs.xml to use correct JDK..."
+mkdir -p /root/.config/unity3d/Preferences
+cat <<EOF > /root/.config/unity3d/Preferences/EditorPrefs.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<unity_prefs version="1.0">
+  <pref name="JdkPath" type="string">/opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK</pref>
+  <pref name="SdkPath" type="string">/opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/SDK</pref>
+  <pref name="NdkPath" type="string">/opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/NDK</pref>
+  <pref name="GradlePath" type="string">/github/workspace/gradle-local/gradle-8.11</pref>
+  <pref name="kPreferAndroidStudio" type="int">0</pref>
+</unity_prefs>
+EOF
+echo "✅ EditorPrefs.xml created successfully at /root/.config/unity3d/Preferences"
 
 #
 # 🧩 Prepare Android SDK (optional)
