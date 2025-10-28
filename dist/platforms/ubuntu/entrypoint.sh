@@ -13,6 +13,19 @@ fi
 
 fullProjectPath="$GITHUB_WORKSPACE/$PROJECT_PATH"
 
+echo "☕ Ensuring Temurin 17 is present..."
+if [ ! -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
+  echo "📦 Copying JDK from /opt/hostedtoolcache (mounted from host)..."
+  if [ -d "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64" ]; then
+    mkdir -p /usr/lib/jvm/temurin-17-jdk-amd64
+    cp -r /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64/* /usr/lib/jvm/temurin-17-jdk-amd64/ || true
+    echo "✅ JDK 17 copied successfully."
+  else
+    echo "❌ ERROR: Source JDK not found at /opt/hostedtoolcache/... Exiting."
+    exit 1
+  fi
+fi
+
 if [[ "$BUILD_TARGET" == "Android" ]]; then
   # ✅ Prefer external JDK 17 over Unity embedded JDK
   if [ -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
