@@ -14,7 +14,14 @@ fi
 fullProjectPath="$GITHUB_WORKSPACE/$PROJECT_PATH"
 
 if [[ "$BUILD_TARGET" == "Android" ]]; then
-  export JAVA_HOME="$(awk -F'=' '/JAVA_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
+  # ✅ Force external JDK 17 instead of Unity’s embedded one
+  if [ -d "/usr/lib/jvm/temurin-17-jdk-amd64" ]; then
+    export JAVA_HOME="/usr/lib/jvm/temurin-17-jdk-amd64"
+  else
+    echo "⚠️ External JDK 17 not found, falling back to Unity embedded one"
+    export JAVA_HOME="$(awk -F'=' '/JAVA_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
+  fi
+  
   ANDROID_HOME_DIRECTORY="$(awk -F'=' '/ANDROID_HOME=/{print $2}' /usr/bin/unity-editor.d/*)"
   SDKMANAGER=$(find $ANDROID_HOME_DIRECTORY/cmdline-tools -name sdkmanager)
   if [ -z "${SDKMANAGER}" ]
