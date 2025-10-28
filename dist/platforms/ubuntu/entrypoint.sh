@@ -37,8 +37,12 @@ export UNITY_JDK="$JAVA_HOME"
 export PATH="$JAVA_HOME/bin:$PATH"
 $JAVA_HOME/bin/java -version
 
-# 🧹 Remove old Unity JDK 11
+# 🧹 Replace Unity's built-in JDK 11 with Temurin 17
+echo "☕ Overriding Unity built-in JDK with Temurin 17..."
 rm -rf /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK || true
+mkdir -p /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK
+cp -r /usr/lib/jvm/temurin-17-jdk-amd64/* /opt/unity/Editor/Data/PlaybackEngines/AndroidPlayer/OpenJDK/
+echo "✅ Unity JDK replaced with Temurin 17"
 
 #
 # 🧠 Force Unity to see correct JDK path
